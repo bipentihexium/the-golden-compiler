@@ -1,0 +1,3 @@
+#pragma once
+
+constexpr const char *version_str = "${TheGoldenCompiler_VERSION_MAJOR}.${TheGoldenCompiler_VERSION_MINOR}.${TheGoldenCompiler_VERSION_PATCH}.${TheGoldenCompiler_VERSION_TWEAK}";

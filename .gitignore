@@ -1,0 +1,5 @@
+/.cache/
+/build/
+/out/
+/src/cmake.hpp
+/src/parser/tglex.zmn
