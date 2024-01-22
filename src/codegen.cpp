@@ -1,5 +1,7 @@
 #include "codegen.hpp"
 #include <iostream>
+#include <filesystem>
+#include <ranges>
 #include <set>
 #include <unordered_map>
 #include <llvm/ADT/APInt.h>
@@ -22,6 +24,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/TargetParser/Host.h>
+#include "cmake.hpp"
 
 using namespace std::string_literals;
 
@@ -59,6 +62,25 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 	const auto funs = get_funs(fs, tokens, idl);
 	modules.push_back(std::make_unique<llvm::Module>(fs.file, ctx));
 	llvm::Module *mod = modules.back().get();
+	llvm::DIBuilder *dib = nullptr;
+	llvm::DICompileUnit *dicu = nullptr;
+	llvm::DIFile *dif = nullptr;
+	llvm::DISubroutineType *dist = nullptr;
+	if (opts.debug_info) {
+		dibs.push_back(std::make_unique<llvm::DIBuilder>(*mod));
+		dib = dibs.back().get();
+		std::filesystem::path fp(fs.file);
+		dif = dib->createFile(fp.filename().string(), fp.parent_path().string());
+		dicu = dib->createCompileUnit(llvm::dwarf::DW_LANG_C, dif, "The Golden compiler v"s + version_str, opts.optimize, opts.args, 0);
+		llvm::DIType *ditp = dib->createBasicType("pointer", 64, llvm::dwarf::DW_ATE_address);
+		llvm::DIType *ditv = dib->createBasicType("void", 0, llvm::dwarf::DW_ATE_unsigned);
+		llvm::SmallVector<llvm::Metadata *, 4> at;
+		at.push_back(ditv);
+		at.push_back(ditp);
+		at.push_back(ditp);
+		at.push_back(ditp);
+		dist = dib->createSubroutineType(dib->getOrCreateTypeArray(at));
+	}
 
 	llvm::Type *tvp = llvm::PointerType::get(ctx, 0);
 	llvm::Type *tv = llvm::Type::getVoidTy(ctx);
@@ -74,6 +96,7 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 	llvm::FunctionType *d_d_funt = llvm::FunctionType::get(td, { td }, false);
 	llvm::FunctionType *d_v_funt = llvm::FunctionType::get(td, { }, false);
 	llvm::FunctionType *i_v_funt = llvm::FunctionType::get(llvm::Type::getInt32Ty(ctx), { }, false);
+	llvm::FunctionType *v_v_funt = llvm::FunctionType::get(tv, { }, false);
 	llvm::Function *cl_memory_poold1k_alloc = llvm::Function::Create(vp_vp_funt, llvm::Function::ExternalLinkage, 0, "corelib_memory_poold1k_alloc", mod);
 	llvm::Function *cl_memory_poold1k_dealloc = llvm::Function::Create(v_vp_vp_funt, llvm::Function::ExternalLinkage, 0, "corelib_memory_poold1k_dealloc", mod);
 	llvm::Function *cl_memoryd_movea = llvm::Function::Create(v_vp_i64_funt, llvm::Function::ExternalLinkage, 0, "corelib_memoryd_movea", mod);
@@ -108,6 +131,14 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 			std::cerr << error_pref << "function " << id << " redefinition in " << fs.file << " " << tokens[begin].begin << std::endl;
 			continue;
 		}
+		llvm::DISubprogram *disp = nullptr;
+		if (opts.debug_info) {
+			auto spf = llvm::DISubprogram::SPFlagDefinition;
+			if (id == 79) { spf |= llvm::DISubprogram::SPFlagMainSubprogram; }
+			disp = dib->createFunction(dicu, "fun"+std::to_string(id), "tg_fun_"+std::to_string(id), dif, tokens[begin].begin.line, dist, tokens[begin].begin.line,
+				llvm::DINode::FlagPrototyped, spf);
+			f->setSubprogram(disp);
+		}
 		std::vector<std::array<llvm::BasicBlock *, 2>> wloops;
 		std::vector<std::array<llvm::BasicBlock *, 2>> dwloops;
 		std::vector<bool> loopt;
@@ -126,6 +157,9 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 		while (ci != end) {
 			token_t t = tokens[ci++];
 			if (opts.show_instrs) std::cout << "\t" << op_names[size_t(t.t)] << " " << t.value << std::endl;
+			if (opts.debug_info) {
+				irb.SetCurrentDebugLocation(llvm::DILocation::get(ctx, t.begin.line, t.begin.col, disp));
+			}
 			switch (t.t) {
 			case token_kind::mdf:{
 				llvm::Value *a = irb.CreateCall(cl_memoryd_geta, { amem }, "opa");
@@ -332,9 +366,11 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 		if (id == 79) {
 			llvm::Function *cl_memory_poold1k_new = llvm::Function::Create(vp_v_funt, llvm::Function::ExternalLinkage, 0, "corelib_memory_poold1k_new", mod);
 			llvm::Function *cl_memory_poold1k_free = llvm::Function::Create(v_vp_funt, llvm::Function::ExternalLinkage, 0, "corelib_memory_poold1k_free", mod);
+			llvm::Function *cl_rand_init = llvm::Function::Create(v_v_funt, llvm::Function::ExternalLinkage, 0, "corelib_rand_init", mod);
 			llvm::Function *main = llvm::Function::Create(i_v_funt, llvm::Function::ExternalLinkage, 0, "main", mod);
 			llvm::BasicBlock *mbb = llvm::BasicBlock::Create(ctx, "entry", main);
 			irb.SetInsertPoint(mbb);
+			irb.CreateCall(cl_rand_init, { });
 			llvm::Value *pool = irb.CreateCall(cl_memory_poold1k_new, { }, "pool");
 			llvm::Value *global_mem = irb.CreateCall(cl_memory_poold1k_alloc, { pool }, "global");
 			llvm::Value *local_mem = irb.CreateCall(cl_memory_poold1k_alloc, { pool }, "local");
@@ -404,6 +440,12 @@ void codegen::to_obj(const flags &, const std::string &file) {
 		opts.rcode = 1;
 		std::cerr << error_pref << "llvm target machine can't emit a file of this type" << std::endl;
 		return;
+	}
+	if (opts.debug_info) {
+		for (size_t i = 0; i < modules.size(); i++) {
+			dibs[i]->finalize();
+			pass.run(*modules[i]);
+		}
 	}
 	for (auto &mod : modules) {
 		pass.run(*mod);

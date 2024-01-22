@@ -2,11 +2,13 @@
 #include <string>
 
 struct options {
+	std::string args;
 	bool verbose;
 	bool show_ir;
 	bool show_instrs;
 	bool jit;
 	bool optimize;
+	bool debug_info;
 	int rcode;
 };
 extern options opts;

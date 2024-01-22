@@ -22,6 +22,7 @@ int main(int argc, const char **argv) {
 		("show-ir,ir", "show LLVM IR of compiled modules")
 		("show-instrs", "show TG instructions (for debugging the compiler)")
 		("optimize", "run LLVM O2 optimization passes on the IR")
+		("debug-info,g", "generate debug info")
 		("jit,j", "run compiled code through jit immediately")
 		("jit-console,console", "run jit compiled console")
 	;
@@ -47,6 +48,8 @@ int main(int argc, const char **argv) {
 		return 1;
 	}
 	opts.rcode = 0;
+	for (int i = 1; i < argc; i++)
+		opts.args += std::string(i > 1 ? " " : "") + argv[i];
 	opts.verbose = vm.contains("verbose");
 	opts.show_ir = vm.contains("show-ir");
 	opts.show_instrs = vm.contains("show-instrs");
@@ -55,6 +58,7 @@ int main(int argc, const char **argv) {
 		std::cerr << error_pref << "JIT isn't implemented yet" << std::endl;
 	}
 	opts.optimize = vm.contains("optimize");
+	opts.debug_info = vm.contains("debug-info");
 	flags fs{"", "", vm.contains("ver") ? vm["ver"].as<std::string>() : "0.4.0E"};
 	std::vector<std::string> ifs = vm["input-file"].as<std::vector<std::string>>();
 	codegen cg;
