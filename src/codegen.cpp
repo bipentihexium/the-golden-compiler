@@ -1,7 +1,6 @@
 #include "codegen.hpp"
 #include <iostream>
 #include <filesystem>
-#include <ranges>
 #include <set>
 #include <unordered_map>
 #include <llvm/ADT/APInt.h>
@@ -115,6 +114,9 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 	llvm::Function *cl_ceil = llvm::Function::Create(d_d_funt, llvm::Function::ExternalLinkage, 0, "corelib_ceild", mod);
 	llvm::Function *cl_rand = llvm::Function::Create(d_v_funt, llvm::Function::ExternalLinkage, 0, "corelib_randd", mod);
 	llvm::Function *cl_flrpow = llvm::Function::Create(d_d_funt, llvm::Function::ExternalLinkage, 0, "corelib_flrpowd", mod);
+	llvm::Function *print_memory = llvm::Function::Create(v_vp_funt, llvm::Function::ExternalLinkage, 0, "print_memory", mod);
+	llvm::Function *print_all_memory = llvm::Function::Create(v_vp_funt, llvm::Function::ExternalLinkage, 0, "print_all_memory", mod);
+	llvm::Function *dprn = llvm::Function::Create(v_vp_funt, llvm::Function::ExternalLinkage, 0, "dprint", mod);
 
 	llvm::FunctionType *ft = llvm::FunctionType::get(tv, { tvp, tvp, tvp }, false);
 	std::unordered_map<int64_t, llvm::Function *> functions;
@@ -154,18 +156,30 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 		bool repv = false;
 		if (opts.show_instrs) std::cout << "fun " << id << ":" << std::endl;
 		std::vector<llvm::Value *> frame_stack = { arg_global };
+		bool dprint = false;
 		while (ci != end) {
 			token_t t = tokens[ci++];
 			if (opts.show_instrs) std::cout << "\t" << op_names[size_t(t.t)] << " " << t.value << std::endl;
 			if (opts.debug_info) {
 				irb.SetCurrentDebugLocation(llvm::DILocation::get(ctx, t.begin.line, t.begin.col, disp));
 			}
+			if (dprint && t.t != token_kind::rpt && t.t != token_kind::rptv && t.t != token_kind::dbg) {
+				std::string out = "> "s + op_names[size_t(t.t)];
+				if (t.value) out += " " + std::to_string(t.value);
+				out += " fun " + std::to_string(id) + " [rep=" + std::to_string(rep) + ", repv=" + (repv?"y":"n") + ", global=" + (global?"y":"n") + "]"
+					" (" + fs.file + " " + std::to_string(t.begin.line) + ":" + std::to_string(t.begin.col) + ")\n";
+				llvm::Constant *strc = llvm::ConstantDataArray::getString(ctx, out, true);
+				llvm::GlobalVariable *gv = new llvm::GlobalVariable(*mod, strc->getType(), true, llvm::GlobalValue::PrivateLinkage, strc, "dbg_string");
+				llvm::Value *v = irb.CreateConstGEP1_32(strc->getType(), gv, 0, "dbg_string_ptr");
+				irb.CreateCall(dprn, { v });
+				irb.CreateCall(print_memory, { amem });
+			}
 			switch (t.t) {
 			case token_kind::mdf:{
 				llvm::Value *a = irb.CreateCall(cl_memoryd_geta, { amem }, "opa");
 				llvm::Value *r;
 				if (repv)
-					r = irb.CreateFMul(a, llvm::ConstantFP::get(td, rep + t.value), "rv_mdf_res");
+					r = irb.CreateFMul(a, llvm::ConstantFP::get(td, rep * t.value + 1), "rv_mdf_res");
 				else
 					r = irb.CreateFAdd(a, llvm::ConstantFP::get(td, rep * t.value), "mdf_res");
 				irb.CreateCall(cl_memoryd_seta, { amem, r });
@@ -276,7 +290,10 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 				}break;
 			case token_kind::lpe:{
 				if (rep != 1 || repv) { t.begin.message(fs, error_pref+"lpe isn't a repeatable command"s); }
-				loopt.pop_back();
+				if (loopt.empty()) { t.begin.message(fs, error_pref+"lpe outside of loop"s); break; }
+				auto f = std::find(loopt.rbegin(), loopt.rend(), t.value);
+				if (f == loopt.rend()) { t.begin.message(fs, error_pref+"lpe of the wrong type"s); break; }
+				loopt.erase((f+1).base());
 				auto &lpstack = t.value ? dwloops : wloops;
 				llvm::Value *cond = irb.CreateCall(cl_memoryd_geta, { amem }, "cond");
 				llvm::Value *cmpr = irb.CreateFCmpONE(cond, llvm::ConstantFP::get(td, 0.0), "cmpres");
@@ -352,6 +369,15 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 					irb.CreateCall(functions[t.value], { arg_pool, arg_global, frame_stack.back() });
 				}
 				break;
+			case token_kind::dbg:
+				switch (t.value) {
+				default: irb.CreateCall(print_memory, { arg_local }); break;
+				case 1: irb.CreateCall(print_all_memory, { arg_pool }); break;
+				case 2: irb.CreateCall(print_memory, { arg_global }); break;
+				case -1: dprint = true; break;
+				case -2: dprint = false; break;
+				}
+				break;
 			default: break; // eof
 			}
 			if (t.t != token_kind::rpt && t.t != token_kind::rptv) {
@@ -361,6 +387,9 @@ void codegen::gen(const flags &fs, std::vector<token_t> &tokens) {
 		}
 		if (frame_stack.size() > 1) {
 			tokens[end].begin.message(fs, error_pref+"there are unclosed clls frames (which cause memory and memory pool leaks)"s);
+		}
+		if (opts.debug_info) {
+			irb.SetCurrentDebugLocation(llvm::DILocation::get(ctx, tokens[end].begin.line, tokens[end].begin.col, disp));
 		}
 		irb.CreateRetVoid();
 		if (id == 79) {

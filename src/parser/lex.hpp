@@ -15,10 +15,10 @@ enum class token_kind {
 	clls, clle,
 	rptv, rpt,
 	id,
-	eof
+	dbg, eof
 };
 constexpr const char *op_names[] = {
-	"mdf", "mathb", "mathu", "rnd", "sft", "swp", "cio", "lps", "lpe", "idx", "tst", "gtrf", "gswp", "clls", "clle", "rptv", "rpt", "id", "eof"
+	"mdf", "mathb", "mathu", "rnd", "sft", "swp", "cio", "lps", "lpe", "idx", "tst", "gtrf", "gswp", "clls", "clle", "rptv", "rpt", "id", "dbg", "eof"
 };
 struct cloc {
 	unsigned int idx;

@@ -1,7 +1,8 @@
+#include "lex.hpp"
 #include <iomanip>
 #include <iostream>
 #include <string>
-#include "lex.hpp"
+#include "../options.hpp"
 
 using namespace std::string_literals;
 
@@ -10,11 +11,11 @@ using namespace std::string_literals;
 #include <stdexcept>
 namespace zmn {
 	enum class token_kind {
-		tINCR, tDECR, tADD, tSUB, tMUL, tDIV, tFLR, tCEIL, tRND, tLFT, tRGT, tSWP, tIN_N, tOUTN, tIN_C, tOUTC, tDLPS, tDLPE, tLPS, tLPE, tIDX, tTEQ, tTLT, tTGT, tGTRF, tGSWP, tCLLS, tCLLE, tFLAG_VERSION, tFLAG_UNKNOWN, tRPTV, tRPT, tID, tEOF, tCOMMENT, tNEWLINE, tCOMMENT2, tUNSET, tERROR
+		tINCR, tDECR, tADD, tSUB, tMUL, tDIV, tFLR, tCEIL, tRND, tLFT, tRGT, tSWP, tIN_N, tOUTN, tIN_C, tOUTC, tDLPS, tDLPE, tLPS, tLPE, tIDX, tTEQ, tTLT, tTGT, tGTRF, tGSWP, tCLLS, tCLLE, tFLAG_VERSION, tFLAG_IMPL_PRINT_MEM, tFLAG_IMPL_PRINT_ALL_MEM, tFLAG_IMPL_PRINT_GLOBAL, tFLAG_IMPL_PRINT_ON, tFLAG_IMPL_PRINT_OFF, tFLAG_IMPL_UNKNOWN, tFLAG_UNKNOWN, tRPTV, tRPT, tID, tEOF, tCOMMENT, tNEWLINE, tCOMMENT2, tUNSET, tERROR
 	};
 	constexpr const char *token_kind_to_str(const token_kind tk) {
 		constexpr const char *strs[] = {
-			"INCR","DECR","ADD","SUB","MUL","DIV","FLR","CEIL","RND","LFT","RGT","SWP","IN_N","OUTN","IN_C","OUTC","DLPS","DLPE","LPS","LPE","IDX","TEQ","TLT","TGT","GTRF","GSWP","CLLS","CLLE","FLAG_VERSION","FLAG_UNKNOWN","RPTV","RPT","ID","EOF","COMMENT","NEWLINE","COMMENT2","UNSET","ERROR",
+			"INCR","DECR","ADD","SUB","MUL","DIV","FLR","CEIL","RND","LFT","RGT","SWP","IN_N","OUTN","IN_C","OUTC","DLPS","DLPE","LPS","LPE","IDX","TEQ","TLT","TGT","GTRF","GSWP","CLLS","CLLE","FLAG_VERSION","FLAG_IMPL_PRINT_MEM","FLAG_IMPL_PRINT_ALL_MEM","FLAG_IMPL_PRINT_GLOBAL","FLAG_IMPL_PRINT_ON","FLAG_IMPL_PRINT_OFF","FLAG_IMPL_UNKNOWN","FLAG_UNKNOWN","RPTV","RPT","ID","EOF","COMMENT","NEWLINE","COMMENT2","UNSET","ERROR",
 		};
 		return strs[static_cast<unsigned int>(tk)];
 	}
@@ -240,9 +241,11 @@ namespace zmn {
 					case '#': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
 						 return token_kind::tERROR;
+					case 'I':
+					case 'i': advance(); state = 11; break;
 					case 'V':
 					case 'v': advance(); state = 10; break;
-					default: advance(); state = 11; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 6:switch (*ep) {
 					case '0':
@@ -254,7 +257,7 @@ namespace zmn {
 					case '6':
 					case '7':
 					case '8':
-					case '9': advance(); state = 12; break;
+					case '9': advance(); state = 13; break;
 					case '|': advance(); token = token_kind::tRPTV;
 						{ pusht(::token_kind::rptv);}
 						 return token_kind::tRPTV;
@@ -299,8 +302,8 @@ namespace zmn {
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
 					case 'E':
-					case 'e': advance(); state = 13; break;
-					default: advance(); state = 11; break;
+					case 'e': advance(); state = 14; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 11:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
@@ -310,9 +313,21 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					default: advance(); break;
+					case 'M':
+					case 'm': advance(); state = 15; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 12:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
+						 return token_kind::tFLAG_UNKNOWN;
+					default: advance(); break;
+					}break;
+				case 13:switch (*ep) {
 					case '0':
 					case '1':
 					case '2':
@@ -330,18 +345,6 @@ namespace zmn {
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
 						 return token_kind::tERROR;
 					}break;
-				case 13:switch (*ep) {
-					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
-						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
-						 return token_kind::tERROR;
-					case '\n':
-					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
-						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
-						 return token_kind::tFLAG_UNKNOWN;
-					case 'R':
-					case 'r': advance(); state = 14; break;
-					default: advance(); state = 11; break;
-					}break;
 				case 14:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
@@ -350,9 +353,9 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					case 'S':
-					case 's': advance(); state = 15; break;
-					default: advance(); state = 11; break;
+					case 'R':
+					case 'r': advance(); state = 16; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 15:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
@@ -362,9 +365,9 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					case 'I':
-					case 'i': advance(); state = 16; break;
-					default: advance(); state = 11; break;
+					case 'P':
+					case 'p': advance(); state = 17; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 16:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
@@ -374,9 +377,9 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					case 'O':
-					case 'o': advance(); state = 17; break;
-					default: advance(); state = 11; break;
+					case 'S':
+					case 's': advance(); state = 18; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 17:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
@@ -386,9 +389,9 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					case 'N':
-					case 'n': advance(); state = 18; break;
-					default: advance(); state = 11; break;
+					case 'L':
+					case 'l': advance(); state = 19; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 18:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
@@ -398,8 +401,9 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					case ' ': advance(); state = 19; break;
-					default: advance(); state = 11; break;
+					case 'I':
+					case 'i': advance(); state = 20; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 19:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
@@ -409,9 +413,109 @@ namespace zmn {
 					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
 						 return token_kind::tFLAG_UNKNOWN;
-					default: advance(); state = 20; break;
+					case ' ': advance(); state = 21; break;
+					default: advance(); state = 12; break;
 					}break;
 				case 20:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
+						 return token_kind::tFLAG_UNKNOWN;
+					case 'O':
+					case 'o': advance(); state = 22; break;
+					default: advance(); state = 12; break;
+					}break;
+				case 21:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
+						 return token_kind::tFLAG_UNKNOWN;
+					case 'p': advance(); state = 23; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 22:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
+						 return token_kind::tFLAG_UNKNOWN;
+					case 'N':
+					case 'n': advance(); state = 25; break;
+					default: advance(); state = 12; break;
+					}break;
+				case 23:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'r': advance(); state = 26; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 24:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					default: advance(); break;
+					}break;
+				case 25:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
+						 return token_kind::tFLAG_UNKNOWN;
+					case ' ': advance(); state = 27; break;
+					default: advance(); state = 12; break;
+					}break;
+				case 26:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'i': advance(); state = 28; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 27:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown flag"s);}
+						 return token_kind::tFLAG_UNKNOWN;
+					default: advance(); state = 29; break;
+					}break;
+				case 28:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'n': advance(); state = 30; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 29:switch (*ep) {
 					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
 						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
 						 return token_kind::tERROR;
@@ -420,6 +524,258 @@ namespace zmn {
 						{ fs->tgver = value().substr(9); fs->tgver.pop_back();}
 						 return token_kind::tFLAG_VERSION;
 					default: advance(); break;
+					}break;
+				case 30:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 't': advance(); state = 31; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 31:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case ' ': advance(); state = 32; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 32:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'a': advance(); state = 34; break;
+					case 'g': advance(); state = 35; break;
+					case 'm': advance(); state = 33; break;
+					case 'o': advance(); state = 36; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 33:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'e': advance(); state = 37; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 34:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'l': advance(); state = 38; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 35:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'l': advance(); state = 39; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 36:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'f': advance(); state = 41; break;
+					case 'n': advance(); state = 40; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 37:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'm': advance(); state = 42; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 38:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'l': advance(); state = 43; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 39:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'o': advance(); state = 44; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 40:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_PRINT_ON;
+						{ pusht(::token_kind::dbg, -1);}
+						 return token_kind::tFLAG_IMPL_PRINT_ON;
+					default: advance(); state = 24; break;
+					}break;
+				case 41:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'f': advance(); state = 45; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 42:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_PRINT_MEM;
+						{ pusht(::token_kind::dbg, 0);}
+						 return token_kind::tFLAG_IMPL_PRINT_MEM;
+					default: advance(); state = 24; break;
+					}break;
+				case 43:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case ' ': advance(); state = 46; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 44:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'b': advance(); state = 47; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 45:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_PRINT_OFF;
+						{ pusht(::token_kind::dbg, -2);}
+						 return token_kind::tFLAG_IMPL_PRINT_OFF;
+					default: advance(); state = 24; break;
+					}break;
+				case 46:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'm': advance(); state = 48; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 47:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'a': advance(); state = 49; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 48:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'e': advance(); state = 50; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 49:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'l': advance(); state = 51; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 50:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_UNKNOWN;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, warn_pref+"unknown impl flag"s);}
+						 return token_kind::tFLAG_IMPL_UNKNOWN;
+					case 'm': advance(); state = 52; break;
+					default: advance(); state = 24; break;
+					}break;
+				case 51:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_PRINT_GLOBAL;
+						{ pusht(::token_kind::dbg, 2);}
+						 return token_kind::tFLAG_IMPL_PRINT_GLOBAL;
+					default: advance(); state = 24; break;
+					}break;
+				case 52:switch (*ep) {
+					case '\0': ep = p; ec = c; el = l; advance(); advance(); token = token_kind::tERROR;
+						{ cloc{span_begin(), line_begin(), col_begin()}.message(*fs, error_pref+"unexpected token '"s + value() + "'");}
+						 return token_kind::tERROR;
+					case '\n':
+					case '#': advance(); token = token_kind::tFLAG_IMPL_PRINT_ALL_MEM;
+						{ pusht(::token_kind::dbg, 1);}
+						 return token_kind::tFLAG_IMPL_PRINT_ALL_MEM;
+					default: advance(); state = 24; break;
 					}break;
 				default: throw std::runtime_error("Invalid lexer state!");
 				}

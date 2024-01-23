@@ -55,9 +55,9 @@ extern "C" {
 		auto *pool = static_cast<memory_pool##mps *>(_pool);\
 		if (pool->free_c) {\
 			auto *mem = &pool->slots[pool->free[--pool->free_c]];\
-			mem->a.data = static_cast<t *>(malloc(16 * sizeof(t))); mem->a.size = 16; mem->a.ptr = 0;\
-			mem->b.data = static_cast<t *>(malloc(16 * sizeof(t))); mem->b.size = 16; mem->b.ptr = 0;\
-			for (size_t i = 0; i < 16; i++) { mem->a.data[i] = mem->b.data[i] = 0; }\
+			mem->a.data = static_cast<t *>(malloc(8 * sizeof(t))); mem->a.size = 8; mem->a.ptr = 0;\
+			mem->b.data = static_cast<t *>(malloc(8 * sizeof(t))); mem->b.size = 8; mem->b.ptr = 0;\
+			for (size_t i = 0; i < 8; i++) { mem->a.data[i] = mem->b.data[i] = 0; }\
 			mem->b.data[0] = 1;\
 			return mem;\
 		} else {\
@@ -102,4 +102,53 @@ extern "C" {
 		}
 		return o;
 	}
+
+	void print_mem_row_data(memory_rowd *r) {
+		for (size_t i = 0; i < r->size; i++) {
+			char pfc = ' ';
+			char dc = r->data[i];
+			if (static_cast<unsigned char>(dc) < 8) { pfc = '\\'; dc += '0'; }
+			else if (dc == '\n') { pfc = '\\'; dc = 'n'; }
+			else if (dc == '\r') { pfc = '\\'; dc = 'r'; }
+			else if (dc == '\t') { pfc = '\\'; dc = 't'; }
+			else if (static_cast<unsigned char>(dc) < 32) { pfc = '?'; dc = '<'; }
+			else if (dc == ' ') { pfc = 's'; dc = 'p'; }
+			else if (static_cast<unsigned char>(dc) > 126) { pfc = '?'; dc = '>'; }
+			printf("| %12.2f (%c%c) ", r->data[i], pfc, dc);
+		}
+		printf("|\n");
+	}
+	void print_ptr_pos(memory_rowd *r, char c) {
+		for (size_t i = 0; i < r->size; i++) {
+			if (int64_t(i) == r->ptr) {
+				printf("  %c---- %6ld ----", c, r->ptr);
+				break;
+			} else {
+				printf("                    ");
+			}
+		}
+		putchar('\n');
+	}
+	void print_memory(void *_mem) {
+		memoryd *mem = static_cast<memoryd *>(_mem);
+		print_ptr_pos(&mem->a, 'v');
+		print_mem_row_data(&mem->a);
+		print_mem_row_data(&mem->b);
+		print_ptr_pos(&mem->b, '^');
+	}
+	void print_all_memory(void *_pool) {
+		memory_poold1k *pool = static_cast<memory_poold1k *>(_pool);
+		printf("global:\n");
+		print_memory(pool->slots + 1023);
+		for (size_t i = 0; i < 1023; i++) {
+			for (size_t j = 0; j < pool->free_c; j++) {
+				if (pool->free[j] == i)
+					goto skip;
+			}
+			printf("memory %zu:\n", i);
+			print_memory(pool->slots + i);
+		skip:;
+		}
+	}
+	void dprint(void *str) { printf("\x1b[34m%s\x1b[0m", (char *)str); }
 }
